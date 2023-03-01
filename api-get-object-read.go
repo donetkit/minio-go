@@ -24,7 +24,7 @@ import (
 	"net/http"
 )
 
-// GetObjectRead wrapper function that accepts a request context
+//GetObjectRead wrapper function that accepts a request context
 func (c *Client) GetObjectRead(ctx context.Context, bucketName, objectName string, opts GetObjectOptions) (io.ReadCloser, ObjectInfo, http.Header, error) {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {

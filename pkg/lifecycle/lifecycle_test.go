@@ -116,6 +116,63 @@ func TestLifecycleUnmarshalJSON(t *testing.T) {
 			}`,
 			err: nil,
 		},
+		{
+			input: `{
+				"Rules": [
+					{
+						"ID": "transition-lt",
+						"Status": "Enabled",
+						"Filter": {
+							"ObjectSizeLessThan": 1048576
+						},
+						"Transition": {
+							"StorageClass": "S3TIER-1",
+							"Days": 1
+						}
+					}
+				]
+			}`,
+			err: nil,
+		},
+		{
+			input: `{
+				"Rules": [
+					{
+						"ID": "noncurrent-transition-gt",
+						"Status": "Enabled",
+						"Filter": {
+							"ObjectSizeGreaterThan": 10485760
+						},
+						"NoncurrentVersionTransition": {
+							"StorageClass": "S3TIER-1",
+							"NoncurrentDays": 1
+						}
+					}
+				]
+			}`,
+			err: nil,
+		},
+		{
+			input: `{
+				"Rules": [
+					{
+						"ID": "noncurrent-transition-lt-and-gt",
+						"Status": "Enabled",
+						"Filter": {
+							"And": {
+								"ObjectSizeGreaterThan": 10485760,
+								"ObjectSizeLessThan": 1048576
+							}
+						},
+						"NoncurrentVersionTransition": {
+							"StorageClass": "S3TIER-1",
+							"NoncurrentDays": 1
+						}
+					}
+				]
+			}`,
+			err: nil,
+		},
 	}
 
 	for i, tc := range testCases {
@@ -209,6 +266,13 @@ func TestLifecycleJSONRoundtrip(t *testing.T) {
 				ID:     "rule-6",
 				Status: "Enabled",
 			},
+			{
+				DelMarkerExpiration: DelMarkerExpiration{
+					Days: 10,
+				},
+				ID:     "rule-7",
+				Status: "Enabled",
+			},
 		},
 	}
 
@@ -232,6 +296,9 @@ func TestLifecycleJSONRoundtrip(t *testing.T) {
 		}
 		if lc.Rules[i].Expiration != got.Rules[i].Expiration {
 			t.Fatalf("expected %#v got %#v", lc.Rules[i].Expiration, got.Rules[i].Expiration)
+		}
+		if !lc.Rules[i].DelMarkerExpiration.equals(got.Rules[i].DelMarkerExpiration) {
+			t.Fatalf("expected %#v got %#v", lc.Rules[i].DelMarkerExpiration, got.Rules[i].DelMarkerExpiration)
 		}
 	}
 }
@@ -278,6 +345,13 @@ func TestLifecycleXMLRoundtrip(t *testing.T) {
 					NewerNoncurrentVersions: 5,
 				},
 			},
+			{
+				ID:     "delmarker-expiration",
+				Status: "Enabled",
+				DelMarkerExpiration: DelMarkerExpiration{
+					Days: 5,
+				},
+			},
 		},
 	}
 
@@ -309,6 +383,10 @@ func (n NoncurrentVersionTransition) equals(m NoncurrentVersionTransition) bool 
 
 func (t Transition) equals(u Transition) bool {
 	return t.Days == u.Days && t.Date.Equal(u.Date.Time) && t.StorageClass == u.StorageClass
+}
+
+func (a DelMarkerExpiration) equals(b DelMarkerExpiration) bool {
+	return a.Days == b.Days
 }
 
 func TestExpiredObjectDeleteMarker(t *testing.T) {

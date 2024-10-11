@@ -59,6 +59,10 @@ func TestGetRegionFromURL(t *testing.T) {
 			expectedRegion: "us-gov-west-1",
 		},
 		{
+			u:              url.URL{Host: "s3-fips.us-gov-east-1.amazonaws.com"},
+			expectedRegion: "us-gov-east-1",
+		},
+		{
 			u:              url.URL{Host: "s3-us-gov-west-1.amazonaws.com"},
 			expectedRegion: "us-gov-west-1",
 		},
@@ -280,6 +284,8 @@ func TestIsGoogleEndpoint(t *testing.T) {
 		// valid inputs.
 		{"http://storage.googleapis.com", true},
 		{"https://storage.googleapis.com", true},
+		{"http://storage.googleapis.com:80", true},
+		{"https://storage.googleapis.com:443", true},
 	}
 
 	for i, testCase := range testCases {

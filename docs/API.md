@@ -81,6 +81,7 @@ func main() {
 |                                                       | [`GetObjectTagging`](#GetObjectTagging)             |                                               |                                                               |                                                       |
 |                                                       | [`RemoveObjectTagging`](#RemoveObjectTagging)       |                                               |                                                               |                                                       |
 |                                                       | [`RestoreObject`](#RestoreObject)                   |                                               |                                                               |                                                       |
+|                                                       | [`GetObjectAttributes`](#GetObjectAttributes)                   |                                               |                                                               |                                                       |
 
 ## 1. Constructor
 <a name="MinIO"></a>
@@ -445,8 +446,8 @@ __minio.GetObjectOptions__
 |:---|:---|:---|
 | `opts.ServerSideEncryption` | _encrypt.ServerSide_ | Interface provided by `encrypt` package to specify server-side-encryption. (For more information see https://godoc.org/github.com/minio/minio-go/v7) |
 | `opts.Internal`                | _minio.AdvancedGetOptions_               | This option is intended for internal use by MinIO server. This option should not be set unless the application is aware of intended use.
-__Return Value__
 
+__Return Value__
 
 |Param   |Type   |Description   |
 |:---|:---| :---|
@@ -503,6 +504,55 @@ if err != nil {
     return
 }
 ```
+
+<a name="PutObjectFanOut"></a>
+### PutObjectFanOut(ctx context.Context, bucket string, body io.Reader, fanOutReq ...PutObjectFanOutRequest) ([]PutObjectFanOutResponse, error)
+A variant of PutObject instead of writing a single object from a single stream multiple objects are written, defined via a list of 
+*PutObjectFanOutRequest*. Each entry in *PutObjectFanOutRequest* carries an object keyname and its relevant metadata if any. 
+`Key` is mandatory, rest of the other options in *PutObjectFanOutRequest( are optional.
+
+__Parameters__
+
+| Param        | Type                           | Description                                                           |
+|:-------------|:-------------------------------|:----------------------------------------------------------------------|
+| `ctx`        | _context.Context_              | Custom context for timeout/cancellation of the call                   |
+| `bucketName` | _string_                       | Name of the bucket                                                    |
+| `fanOutData` | _io.Reader_                    | Any Go type that implements io.Reader                                 |
+| `fanOutReq`  | _minio.PutObjectFanOutRequest_ | User input list of all the objects that will be created on the server |
+|              |                                |                                                                       |
+
+__minio.PutObjectFanOutRequest__
+
+| Field       | Type                            | Description                                |
+|:------------|:--------------------------------|:-------------------------------------------|
+| `Entries`   | _[]minio.PutObjectFanOutEntyry_ | List of object fan out entries             |
+| `Checksums` | _map[string]string_             | Checksums for the input data               |
+| `SSE`       | _encrypt.ServerSide             | Encryption settings for the entire fan-out |
+
+__minio.PutObjectFanOutEntry__
+
+| Field                | Type                  | Description                                                                                        |
+|:---------------------|:----------------------|:---------------------------------------------------------------------------------------------------|
+| `Key`                | _string_              | Name of the object                                                                                 |
+| `UserMetadata`       | _map[string]string_   | Map of user metadata                                                                               |
+| `UserTags`           | _map[string]string_   | Map of user object tags                                                                            |
+| `ContentType`        | _string_              | Content type of object, e.g "application/text"                                                     |
+| `ContentEncoding`    | _string_              | Content encoding of object, e.g "gzip"                                                             |
+| `ContentDisposition` | _string_              | Content disposition of object, "inline"                                                            |
+| `ContentLanguage`    | _string_              | Content language of object, e.g "French"                                                           |
+| `CacheControl`       | _string_              | Used to specify directives for caching mechanisms in both requests and responses e.g "max-age=600" |
+| `Retention`          | _minio.RetentionMode_ | Retention mode to be set, e.g "COMPLIANCE"                                                         |
+| `RetainUntilDate`    | _time.Time_           | Time until which the retention applied is valid                                                    |
+
+__minio.PutObjectFanOutResponse__
+
+| Field          | Type       | Description                                                     |
+|:---------------|:-----------|:----------------------------------------------------------------|
+| `Key`          | _string_   | Name of the object                                              |
+| `ETag`         | _string_   | ETag opaque unique value of the object                          |
+| `VersionID`    | _string_   | VersionID of the uploaded object                                |
+| `LastModified` | _time.Time | Last modified time of the latest object                         |
+| `Error`        | _error_    | Is non `nil` only when the fan-out for a specific object failed |
 
 <a name="PutObject"></a>
 ### PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64,opts PutObjectOptions) (info UploadInfo, err error)
@@ -1143,6 +1193,59 @@ err = s3Client.RestoreObject(context.Background(), "your-bucket", "your-object",
 if err != nil {
     log.Fatalln(err)
 }
+```
+
+<a name="GetObjectAttributes"></a>
+### GetObjectAttributes(ctx context.Context, bucketName, objectName string, opts ObjectAttributesOptions) (*ObjectAttributes, error)
+Returns a stream of the object data. Most of the common errors occur when reading the stream.
+
+
+__Parameters__
+
+
+|Param   |Type   |Description   |
+|:---|:---| :---|
+|`ctx`  | _context.Context_  | Custom context for timeout/cancellation of the call|
+|`bucketName`  | _string_  |Name of the bucket  |
+|`objectName` | _string_  |Name of the object  |
+|`opts` | _minio.ObjectAttributesOptions_ | Configuration for pagination and selection of object attributes |
+
+
+__minio.ObjectAttributesOptions__
+
+|Field | Type | Description |
+|:---|:---|:---|
+| `opts.ServerSideEncryption` | _encrypt.ServerSide_ | Interface provided by `encrypt` package to specify server-side-encryption. (For more information see https://godoc.org/github.com/minio/minio-go/v7) |
+| `opts.MaxParts`                | _int               | This option defines how many parts should be returned by the API
+| `opts.VersionID`                | _string               | VersionID defines which version of the object will be used
+| `opts.PartNumberMarker`                | _int               | This options defines which part number pagination will start after, the part which number is equal to PartNumberMarker will not be included in the response
+
+__Return Value__
+
+|Param   |Type   |Description   |
+|:---|:---| :---|
+|`objectAttributes`  | _*minio.ObjectAttributes_ |_minio.ObjectAttributes_ contains the information about the object and it's parts. |
+
+__Example__
+
+
+```go
+objectAttributes, err := c.GetObjectAttributes(
+    context.Background(), 
+    "your-bucket", 
+    "your-object", 
+    minio.ObjectAttributesOptions{
+        VersionID:"object-version-id",
+        NextPartMarker:0,
+        MaxParts:100,
+    })
+
+if err != nil {
+    fmt.Println(err)
+	return
+}
+
+fmt.Println(objectAttributes)
 ```
 
 
